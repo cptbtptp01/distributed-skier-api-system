@@ -17,9 +17,12 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import model.LiftEvent;
 import model.RequestRecord;
+import service.ThreadMonitor;
 import thread.EventThread;
 import thread.RequestThread;
 
@@ -45,24 +48,26 @@ public class Client {
       final long phase1End = System.currentTimeMillis();
       final int phase1SuccessfulRequests = successfulRequests.get();
       final int phase1FailedRequests = failedRequests.get();
-      // Get Stats
-      printThreadConfig("Phase 1", PHASE1_NUM_OF_THREADS,
-          PHASE1_TOTAL_REQUESTS);
-      printResults(phase1SuccessfulRequests, phase1FailedRequests,
-          phase1Start, phase1End);
+
 
       // Phase 2
       final long phase2Start = System.currentTimeMillis();
       doPhaseTwo();
       final long phase2End = System.currentTimeMillis();
 
-      // Get Stats
+      // Get phase1 Stats
+      printThreadConfig("Phase 1", PHASE1_NUM_OF_THREADS,
+          PHASE1_TOTAL_REQUESTS);
+      printResults(phase1SuccessfulRequests, phase1FailedRequests,
+          phase1Start, phase1End);
+
+      // Get phase2 Stats
       printThreadConfig("Phase 2", PHASE2_NUM_OF_THREADS, PHASE2_TOTAL_REQUESTS);
       printResults(successfulRequests.get() - phase1SuccessfulRequests,
           failedRequests.get() - phase1FailedRequests,
           phase2Start, phase2End);
 
-      // Total stats
+      // Get total stats
       printThreadConfig("Phase 1 + Phase 2", PHASE2_NUM_OF_THREADS + PHASE1_NUM_OF_THREADS,
           TOTAL_REQUESTS);
       printResults(successfulRequests.get(), failedRequests.get(), phase1Start, phase2End);
@@ -103,23 +108,40 @@ public class Client {
    *
    * @throws InterruptedException
    */
-  private static void doPhaseTwo()
-      throws InterruptedException {
+  private static void doPhaseTwo() throws InterruptedException {
+    //TODO threadpool excecutor vs ExecutorService
+    ThreadPoolExecutor requestExecutor =
+        (ThreadPoolExecutor) Executors.newFixedThreadPool(PHASE2_NUM_OF_THREADS);
 
-    ExecutorService requestExecutor = Executors.newFixedThreadPool(PHASE2_NUM_OF_THREADS);
+    // Add monitoring thread
+    Thread monitor = new Thread(new ThreadMonitor(requestExecutor,
+        PHASE2_TOTAL_REQUESTS, successfulRequests, failedRequests));
+    monitor.start();
 
     int remainingRequests = PHASE2_TOTAL_REQUESTS;
-
     CountDownLatch threadLatch = new CountDownLatch(PHASE2_NUM_OF_THREADS);
-    while (remainingRequests > 0) {
-      final int requestsToProcess = Math.min(remainingRequests, PHASE2_REQUESTS_PER_THREAD);
-      RequestThreadConfig threadConfig = generateThreadConfig(threadLatch, requestsToProcess);
-      requestExecutor.submit(new RequestThread(threadConfig));
-      remainingRequests -= requestsToProcess;
-    }
 
-    threadLatch.await();
-    requestExecutor.shutdown();
+    try {
+      while (remainingRequests > 0) {
+        final int requestsToProcess = Math.min(remainingRequests, PHASE2_REQUESTS_PER_THREAD);
+        RequestThreadConfig threadConfig = generateThreadConfig(threadLatch, requestsToProcess);
+        requestExecutor.submit(new RequestThread(threadConfig));
+        remainingRequests -= requestsToProcess;
+      }
+
+      // Add timeout to avoid infinite wait
+      if (!threadLatch.await(5, TimeUnit.MINUTES)) {
+        System.err.println("Timeout waiting for threads to complete!");
+      }
+    } finally {
+      requestExecutor.shutdown();
+      monitor.interrupt();
+
+      // Try to wait for proper shutdown
+      if (!requestExecutor.awaitTermination(60, TimeUnit.SECONDS)) {
+        requestExecutor.shutdownNow();
+      }
+    }
   }
 
   private static RequestThreadConfig generateThreadConfig(CountDownLatch latch,

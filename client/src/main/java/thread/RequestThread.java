@@ -3,15 +3,12 @@ package thread;
 import static constants.HttpConstants.HTTP_CREATED;
 import static constants.HttpConstants.HTTP_OK;
 import static constants.HttpConstants.POST;
-import static constants.ThreadConstants.BACKOFF_MULTIPLIER;
-import static constants.ThreadConstants.INITIAL_RETRY_DELAY_MS;
 import static constants.ThreadConstants.RETRY_TIMES;
 
 import config.RequestThreadConfig;
 import io.swagger.client.ApiException;
 import io.swagger.client.ApiResponse;
 import io.swagger.client.model.LiftRide;
-import java.util.concurrent.TimeUnit;
 import model.LiftEvent;
 import model.RequestRecord;
 

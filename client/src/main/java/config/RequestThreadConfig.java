@@ -22,7 +22,7 @@ public class RequestThreadConfig {
   public static final String HOST =
       System.getenv("HOST") != null ? System.getenv("HOST") : DEFAULT_HOST;
   public static final String BASE_PATH =
-      "http://" + HOST + ":8080" + (HOST.equals(DEFAULT_HOST) ? "/server_war_exploded"
+      "http://" + HOST + (HOST.equals(DEFAULT_HOST) ? "/server_war_exploded"
           : "/server_war");
 
   private final BlockingQueue<LiftEvent> eventQueue;

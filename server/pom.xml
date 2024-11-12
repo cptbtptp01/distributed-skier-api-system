@@ -48,7 +48,7 @@
         <configuration>
           <archive>
             <manifest>
-              <mainClass>SkierConsumer</mainClass> <!-- No package prefix needed -->
+              <mainClass>service.SkierConsumerManager</mainClass>
             </manifest>
           </archive>
         </configuration>

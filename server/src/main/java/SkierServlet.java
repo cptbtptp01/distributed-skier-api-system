@@ -1,7 +1,9 @@
+import static constants.RabbitMQConstants.DEFAULT_PASSWORD;
+import static constants.RabbitMQConstants.DEFAULT_PORT;
+import static constants.RabbitMQConstants.DEFAULT_USERNAME;
+import static constants.RabbitMQConstants.HOST;
+
 import com.google.gson.Gson;
-import com.rabbitmq.client.Channel;
-import com.rabbitmq.client.Connection;
-import config.RabbitMQConfig;
 import java.io.IOException;
 import java.util.concurrent.TimeoutException;
 import javax.servlet.ServletException;
@@ -12,7 +14,7 @@ import javax.servlet.http.HttpServletResponse;
 import model.LiftRide;
 import model.LiftRideMessage;
 import model.ResponseMsg;
-import service.RabbitMQService;
+import service.RabbitMQManager;
 import util.RequestParser;
 
 /**
@@ -23,8 +25,8 @@ import util.RequestParser;
 @WebServlet(value = "/skiers/*")
 public class SkierServlet extends HttpServlet {
 
-  private RabbitMQService rabbitMQService;
   private final Gson gson = new Gson(); // thread safe
+  private RabbitMQManager rabbitMQManager;
 
   /**
    * Initializes the servlet and creates a RabbitMQ service instance.
@@ -33,9 +35,14 @@ public class SkierServlet extends HttpServlet {
   public void init() throws ServletException {
     super.init();
     try {
-      rabbitMQService = new RabbitMQService(RabbitMQConfig.createFactory());
+      rabbitMQManager = new RabbitMQManager(
+          HOST,
+          DEFAULT_PORT,
+          DEFAULT_USERNAME,
+          DEFAULT_PASSWORD
+      );
     } catch (IOException | TimeoutException e) {
-      e.printStackTrace();
+      throw new ServletException("Failed to initialize RabbitMQ connection", e);
     }
   }
 
@@ -44,7 +51,9 @@ public class SkierServlet extends HttpServlet {
    */
   @Override
   public void destroy() {
-    rabbitMQService.close(); // Close the RabbitMQ connection
+    if (rabbitMQManager != null) {
+      rabbitMQManager.close();
+    }
     super.destroy();
   }
 
@@ -57,7 +66,7 @@ public class SkierServlet extends HttpServlet {
    * @throws IOException      If an input or output error occurs.
    */
   protected void doGet(HttpServletRequest req, HttpServletResponse res)
-      throws ServletException, IOException {
+      throws IOException {
     setupResponse(res);
 
     String urlPath = req.getPathInfo();
@@ -94,12 +103,8 @@ public class SkierServlet extends HttpServlet {
    * @throws IOException      If an input or output error occurs.
    */
   protected void doPost(HttpServletRequest req, HttpServletResponse res)
-      throws ServletException, IOException {
-    Connection connection = null;
-    Channel channel = null;
+      throws IOException {
     try {
-      connection = rabbitMQService.getConnection();
-      channel = rabbitMQService.getChannel(connection);
       setupResponse(res);
       String urlPath = req.getPathInfo();
 
@@ -135,7 +140,7 @@ public class SkierServlet extends HttpServlet {
         String messageJson = RequestParser.createMessageJson(message);
 
         // Publish the message to the queue
-        boolean success = rabbitMQService.publishMessage(channel, messageJson);
+        boolean success = rabbitMQManager.publishMessage(messageJson);
 
         if (success) {
           sendSuccessResponse(res, HttpServletResponse.SC_CREATED, "Write successful");
@@ -152,13 +157,6 @@ public class SkierServlet extends HttpServlet {
       e.printStackTrace();
       sendErrorResponse(res, HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
           "Server Error: " + e.getMessage());
-    } finally {
-      if (channel != null) {
-        rabbitMQService.returnChannel(connection, channel);
-      }
-      if (connection != null) {
-        rabbitMQService.returnConnection(connection);
-      }
     }
   }
 
