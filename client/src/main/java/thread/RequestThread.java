@@ -3,6 +3,10 @@ package thread;
 import static constants.HttpConstants.HTTP_CREATED;
 import static constants.HttpConstants.HTTP_OK;
 import static constants.HttpConstants.POST;
+import static constants.ThreadConstants.BACKOFF_MULTIPLIER;
+import static constants.ThreadConstants.INITIAL_BACKOFF_MS;
+import static constants.ThreadConstants.JITTER_FACTOR;
+import static constants.ThreadConstants.MAX_BACKOFF_MS;
 import static constants.ThreadConstants.RETRY_TIMES;
 
 import config.RequestThreadConfig;
@@ -45,6 +49,7 @@ public class RequestThread implements Runnable {
   private void processRequestWithRetry() throws InterruptedException {
     long reqStartTime = System.currentTimeMillis();
     int responseCode = 0;
+    long currentBackoff = INITIAL_BACKOFF_MS;
 
     for (int attempt = 0; attempt < RETRY_TIMES; attempt++) {
       try {
@@ -59,6 +64,15 @@ public class RequestThread implements Runnable {
       } catch (ApiException e) {
         responseCode = e.getCode();
         System.err.println("Attempt " + (attempt + 1) + " failed: " + e.getMessage());
+
+        // Only apply if there is retry
+        if (attempt < RETRY_TIMES - 1) {
+          long jitter = (long) (currentBackoff * JITTER_FACTOR * Math.random());
+          long totalBackoff = currentBackoff + jitter;
+          Thread.sleep(totalBackoff);
+
+          currentBackoff = Math.min(MAX_BACKOFF_MS, (long)(currentBackoff * BACKOFF_MULTIPLIER));
+        }
       }
     }
 

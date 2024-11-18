@@ -1,3 +1,4 @@
+import static constants.ThreadConstants.CSV_FILE_PATH;
 import static constants.ThreadConstants.PHASE1_NUM_OF_THREADS;
 import static constants.ThreadConstants.PHASE1_REQUESTS_PER_THREAD;
 import static constants.ThreadConstants.PHASE1_TOTAL_REQUESTS;
@@ -36,6 +37,9 @@ public class Client {
   public static void main(String[] args) {
 
     try {
+      // Start record stats
+      ExecutorService recordExecutor = Executors.newSingleThreadExecutor();
+
       // Generate events
       // TODO consider multithread working on generating events?
       ExecutorService eventExecutor = Executors.newSingleThreadExecutor();
@@ -48,7 +52,6 @@ public class Client {
       final long phase1End = System.currentTimeMillis();
       final int phase1SuccessfulRequests = successfulRequests.get();
       final int phase1FailedRequests = failedRequests.get();
-
 
       // Phase 2
       final long phase2Start = System.currentTimeMillis();

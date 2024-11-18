@@ -95,7 +95,7 @@ public class SkierServlet extends HttpServlet {
   }
 
   /**
-   * Handles POST requests to submit lift ride data.
+   * Handles POST requests to submit lift ride data to RabbitMQ.
    *
    * @param req The HttpServletRequest object.
    * @param res The HttpServletResponse object.
